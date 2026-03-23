@@ -1,191 +1,334 @@
+from pathlib import Path
+from collections import UserDict
+from datetime import datetime, timedelta, date
+import pickle
+
+
+
+class Field:
+    """Base class for record fields."""
+    def __init__(self, value):
+        self.value = value
+
+    def __str__(self):
+        return str(self.value)
+
+
+class Name(Field):
+    """Class for storing contact name."""
+    pass
+
+
+class Phone(Field):
+    """Class for storing phone number with validation (10 digits)."""
+    def __init__(self, value):
+        if not (isinstance(value, str) and value.isdigit() and len(value) == 10):
+             raise ValueError("Phone number must be 10 digits")
+        super().__init__(value)
+
+
+class Birthday(Field):
+    """Class for storing birthday with validation."""
+    def __init__(self, value):
+        try:
+            formatted_date = datetime.strptime(value, '%d.%m.%Y').date()
+            super().__init__(formatted_date)
+        except ValueError:
+            raise ValueError("Invalid date format. Use DD.MM.YYYY")
+
+
+class Record:
+    """Class for storing contact information including name and list of phones."""
+    def __init__(self, name):
+        self.name = Name(name)
+        self.phones = []
+        self.birthday = None
+
+    def add_phone(self, phone_number: str):
+        """Add phone to the record."""
+        phone = Phone(phone_number)
+        self.phones.append(phone)
+
+    def add_birthday(self, birthday_date: str):
+        """Add birthday to the record."""
+        self.birthday = Birthday(birthday_date)
+    
+    def remove_phone(self, phone_number: str):
+        """Remove phone from the record."""
+        for phone in self.phones:
+            if phone.value == phone_number:
+                self.phones.remove(phone)
+                return
+        raise ValueError("Phone number not found")
+
+    def edit_phone(self, old_phone: str, new_phone: str):
+        """Edit phone number in the record."""
+        for i, phone in enumerate(self.phones):
+            if phone.value == old_phone:
+                self.phones[i] = Phone(new_phone)
+                return
+        raise ValueError("Old phone number not found")
+
+    def find_phone(self, phone_number: str):
+        """Find phone object by number."""
+        for phone in self.phones:
+            if phone.value == phone_number:
+                return phone
+        return None
+
+    def __str__(self):
+        phones = '; '.join(p.value for p in self.phones) if self.phones else "No phones"
+        birthday_str = f", birthday: {self.birthday.value.strftime('%d.%m.%Y')}" if self.birthday else ""
+        return f"Contact name: {self.name.value}, phones: {phones}{birthday_str}"
+
+
+class AddressBook(UserDict):
+    """Class for storing and managing records."""
+    
+    def add_record(self, record: Record):
+        """Add record to address book."""
+        self.data[record.name.value] = record
+
+    def find(self, name: str):
+        """Find record by name."""
+        return self.data.get(name)
+    
+    def delete(self, name: str):
+        """Delete record by name."""
+        if name not in self.data:
+            raise KeyError(f"Contact '{name}' not found")
+        del self.data[name]
+
+    def get_upcoming_birthdays(self, days=7):
+        """
+        Повертає список контактів, у яких день народження припадає 
+        вперед на 7 днів включно з поточним днем.
+        """
+        upcoming_birthdays = []
+        today = date.today()
+
+        def find_next_weekday(start_date, weekday):
+            days_ahead = weekday - start_date.weekday()
+            if days_ahead <= 0:
+                days_ahead += 7
+            return start_date + timedelta(days=days_ahead)
+
+        def adjust_for_weekend(birthday):
+            if birthday.weekday() >= 5:
+                return find_next_weekday(birthday, 0)
+            return birthday
+
+        for record in self.data.values():
+            if record.birthday is None:
+                continue
+                
+            birthday_date = record.birthday.value
+            birthday_this_year = birthday_date.replace(year=today.year)
+            
+            if birthday_this_year < today:
+                birthday_this_year = birthday_date.replace(year=today.year + 1)
+            
+            days_until = (birthday_this_year - today).days
+            
+            if 0 <= days_until <= days:
+                congratulation_date = adjust_for_weekend(birthday_this_year)
+                upcoming_birthdays.append({
+                    "name": record.name.value,
+                    "birthday": congratulation_date.strftime('%d.%m.%Y')
+                })
+        
+        return upcoming_birthdays
+
+    def __str__(self):
+        if not self.data:
+            return "Address book is empty"
+        lines = ["Contacts Book:", "-" * 50]
+        for record in self.data.values():
+            lines.append(str(record))
+        lines.append("-" * 50)
+        return "\n".join(lines)
+
+
 def input_error(func):
     def inner(*args, **kwargs):
-        """
-        Decorator that handles input errors for contact management functions.
-        
-        Catches and handles:
-        - ValueError: when name and phone are not provided correctly
-        - IndexError: when contact name is missing
-        - KeyError: when contact does not exist in the list
-        
-        On KeyError, offers interactive option to add the missing contact.
-        
-        Args:
-            func: Function to decorate (add_contact, change_contact, etc.)
-            
-        Returns:
-            inner: Wrapped function with comprehensive error handling
-        """
-
         try:
             return func(*args, **kwargs)
-        except ValueError:
-            return "Give me name and phone please."
+        except ValueError as e:
+            return str(e) if str(e) else "Give me name and phone please."
         except IndexError:
             return "You need to enter the contact's name"
-        except KeyError:
-            # Extract contact name from args (first element of first argument)
-            contact_name = args[0][0]
-            
-            if not contact_name.isdigit():
-                print(f"The contact '{contact_name}' does not exist in your list")
-
-                # Interactive loop to offer adding the contact
-                while True:
-                    user_input = input('Would you like to add a contact? Yes/No ')
-                    # Get first character and normalize to uppercase
-                    first_char = user_input[0].upper()
-
-                    if first_char == 'Y':
-                        # User wants to add contact
-                        number = input(f'enter {contact_name} contact number ')
-                        return add_contact([contact_name, number], args[1])
-                    if first_char == 'N':
-                        return 'As you say'
-            else:
-                return "You need to enter the contact's name, not the number!"
-            
+        except KeyError as e:
+            return str(e)
     return inner
 
+
 def parse_input(user_input: str) -> tuple:
-    """
-    Parse user input into command and arguments.
-    
-    Splits input string by spaces. First word becomes command,
-    remaining words are collected into args list.
-    
-    Args:
-        user_input (str): Raw input string from user
-        
-    Returns:
-        tuple: (command, *args) where command is lowercase string
-    """
+    """Parse user input into command and arguments."""
+    parts = user_input.split()
+    cmd = parts[0].strip().lower() if parts else ""
+    args = parts[1:]
+    return cmd, args
 
-    cmd, *args = user_input.split()
-    cmd = cmd.strip().lower()
-    return cmd, *args
 
-@input_error
-def add_contact(args: tuple, path: str) -> str:
-    """
-    Add a new contact to the phone book file.
-    
-    If file doesn't exist, creates it. Appends contact in format 'name:phone'.
-    
-    Args:
-        args (list): List containing [name, phone]
-        path (str): Path to the contacts file
-        
-    Returns:
-        str: Success message or error description
-    """
+def save_data(book: AddressBook, path: Path):
+    """Save address book to file using pickle."""
+    with open(path, 'wb') as f:
+        pickle.dump(book, f)
 
-    name, phone = args
-    mode = 'a'
 
-    # Loop until successfully written (handles missing file case)
-    while True:
-        try:
-            with open(path, mode, encoding='utf-8') as file:
-                file.write(f'{name}:{phone}\n')
-                break
-        except FileNotFoundError:
-            mode = "w"
+def load_data(path: Path) -> AddressBook:
+    """Load address book from file."""
+    if path.exists():
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+    return AddressBook()
 
-    return "Contact added."
 
 @input_error
-def change_contact(args: tuple, path: str) -> str:
-    """
-    Update phone number for an existing contact.
+def add_contact(args: list, book: AddressBook) -> str:
+    """Add new contact or phone to existing contact."""
+    if len(args) < 2:
+        raise ValueError("Give me name and phone please.")
     
-    Reads all contacts, updates specified contact's phone,
-    then rewrites the entire file.
+    name, phone = args[0], args[1]
+    record = book.find(name)
     
-    Args:
-        args (list): List containing [name, new_phone]
-        path (str): Path to the contacts file
-        
-    Returns:
-        str: Success message or error description
-    """
+    if record is None:
+        record = Record(name)
+        record.add_phone(phone)
+        book.add_record(record)
+        return f"Contact {name} added with phone {phone}."
+    else:
+        record.add_phone(phone)
+        return f"Phone {phone} added to contact {name}."
 
-    desired_name, new_phone = args
-
-    try:
-        # Read existing contacts into dictionary
-        with open(path, 'r', encoding='utf-8') as file:
-            contacts = dict(el.strip().split(':') for el in file.readlines())
-
-            # Check if contact exists
-            if desired_name not in contacts:
-                return f'contact {desired_name} not found.'
-            else:
-                contacts[desired_name] = new_phone
-        
-        # Rewrite file with updated data
-        with open(path, 'w', encoding='utf-8') as file:
-            for name, phone in contacts.items():
-                file.write(f'{name}:{phone}\n')
-                
-    except FileNotFoundError:
-        return "You haven't added any contacts yet!"
-        
-    return "contact changed"
 
 @input_error
-def phone_username(args, path):
-    """
-    Retrieve phone number for a specific contact.
+def add_birthday(args: list, book: AddressBook) -> str:
+    """Add birthday to contact."""
+    if len(args) < 2:
+        raise ValueError("Give me name and birthday please (DD.MM.YYYY).")
     
-    Args:
-        args (list): List containing [name]
-        path (str): Path to the contacts file
-        
-    Returns:
-        str: Contact info or error message
-    """
-
-    try:
-        # Load contacts from file
-        with open(path, 'r', encoding='utf-8') as file:
-            contacts = dict(el.strip().split(':') for el in file.readlines())
-            # Get phone for requested contact (args[0] is the name)
-            return f'{args[0]} {contacts[args[0]]}'
-        
-    except FileNotFoundError:
-        return "You haven't added any contacts yet!"
-
-def all_contacts(path: str) -> str:
-    """
-    Display all contacts in formatted table.
+    name, birthday = args[0], args[1]
+    record = book.find(name)
     
-    Args:
-        path (str): Path to the contacts file
-        
-    Returns:
-        str: Formatted table of contacts or error message
-    """
+    if record is None:
+        raise KeyError(f"Contact '{name}' not found.")
+    
+    record.add_birthday(birthday)
+    return f"Birthday {birthday} added to contact {name}."
 
-    try:
-        # Read all contacts
-        with open(path, 'r', encoding='utf-8') as file:
-            contacts = dict(el.strip().split(':') for el in file.readlines())
-        
-        # Build formatted output lines
-        lines = []
-        lines.append("-" * 25)
-        lines.append(f"{'Name':<10} | {'Phone':<10}")
-        lines.append("-" * 25)
-        
-        # Add each contact to table
-        for name, phone in contacts.items():
-            lines.append(f"{name:<10} | {phone}")
-            
-        lines.append("-" * 25)
-        
-        # Join all lines with newlines
-        return "\n".join(lines)
-        
-    except FileNotFoundError:
-        return "You haven't added any contacts yet!"
+
+@input_error
+def show_birthday(args: list, book: AddressBook) -> str:
+    """Show birthday of contact."""
+    if len(args) < 1:
+        raise IndexError()
+    
+    name = args[0]
+    record = book.find(name)
+    
+    if record is None:
+        raise KeyError(f"Contact '{name}' not found.")
+    
+    if record.birthday is None:
+        return f"Contact {name} has no birthday set."
+    
+    return f"{name}'s birthday: {record.birthday.value.strftime('%d.%m.%Y')}"
+
+
+@input_error
+def birthdays(args: list, book: AddressBook) -> str:
+    """Show upcoming birthdays for next week."""
+    days = int(args[0]) if args else 7
+    upcoming = book.get_upcoming_birthdays(days)
+    
+    if not upcoming:
+        return f"No upcoming birthdays in the next {days} days."
+    
+    lines = [f"Upcoming birthdays (next {days} days):", "-" * 40]
+    for item in upcoming:
+        lines.append(f"{item['name']}: {item['birthday']}")
+    return "\n".join(lines)
+
+
+@input_error
+def change_contact(args: list, book: AddressBook) -> str:
+    """Change phone number for contact."""
+    if len(args) < 3:
+        raise ValueError("Give me name, old phone and new phone please.")
+    
+    name, old_phone, new_phone = args[0], args[1], args[2]
+    record = book.find(name)
+    
+    if record is None:
+        raise KeyError(f"Contact '{name}' not found.")
+    
+    record.edit_phone(old_phone, new_phone)
+    return f"Phone changed from {old_phone} to {new_phone} for {name}."
+
+
+@input_error
+def phone_username(args: list, book: AddressBook) -> str:
+    """Show all phones for contact."""
+    if len(args) < 1:
+        raise IndexError()
+    
+    name = args[0]
+    record = book.find(name)
+    
+    if record is None:
+        raise KeyError(f"Contact '{name}' not found.")
+    
+    phones = '; '.join(p.value for p in record.phones)
+    return f"{name}: {phones}"
+
+
+@input_error
+def remove_phone(args: list, book: AddressBook) -> str:
+    """Remove phone from contact."""
+    if len(args) < 2:
+        raise ValueError("Give me name and phone please.")
+    
+    name, phone = args[0], args[1]
+    record = book.find(name)
+    
+    if record is None:
+        raise KeyError(f"Contact '{name}' not found.")
+    
+    record.remove_phone(phone)
+    return f"Phone {phone} removed from {name}."
+
+
+@input_error
+def delete_contact(args: list, book: AddressBook) -> str:
+    """Delete contact from address book."""
+    if len(args) < 1:
+        raise IndexError()
+    
+    name = args[0]
+    book.delete(name)
+    return f"Contact {name} deleted."
+
+
+def all_contacts(book: AddressBook) -> str:
+    """Show all contacts."""
+    return str(book) if book.data else "Address book is empty."
+
+
+def show_help() -> str:
+    """Show available commands."""
+    return """Available commands:
+  hello                          - Greeting
+  add [name] [phone]             - Add contact or phone
+  change [name] [old] [new]      - Change phone
+  phone [name]                   - Show contact phones
+  remove [name] [phone]          - Remove phone from contact
+  delete [name]                  - Delete contact
+  add-birthday [name] [DD.MM.YYYY] - Add birthday
+  show-birthday [name]           - Show birthday
+  birthdays [days]               - Upcoming birthdays (default 7 days)
+  all                            - Show all contacts
+  save                           - Save to file
+  close/exit                     - Exit
+"""

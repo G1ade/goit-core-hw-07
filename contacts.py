@@ -285,8 +285,6 @@ def phone_username(args: list, book: AddressBook) -> str:
 @input_error
 def remove_phone(args: list, book: AddressBook) -> str:
     """Remove phone from contact."""
-    if len(args) < 2:
-        raise ValueError("Give me name and phone please.")
     
     name, phone = args[0], args[1]
     record = book.find(name)

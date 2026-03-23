@@ -187,9 +187,7 @@ def load_data(path: Path) -> AddressBook:
 @input_error
 def add_contact(args: list, book: AddressBook) -> str:
     """Add new contact or phone to existing contact."""
-    if len(args) < 2:
-        raise ValueError("Give me name and phone please.")
-    
+       
     name, phone = args[0], args[1]
     record = book.find(name)
     
@@ -319,16 +317,16 @@ def all_contacts(book: AddressBook) -> str:
 def show_help() -> str:
     """Show available commands."""
     return """Available commands:
-  hello                          - Greeting
-  add [name] [phone]             - Add contact or phone
-  change [name] [old] [new]      - Change phone
-  phone [name]                   - Show contact phones
-  remove [name] [phone]          - Remove phone from contact
-  delete [name]                  - Delete contact
-  add-birthday [name] [DD.MM.YYYY] - Add birthday
-  show-birthday [name]           - Show birthday
-  birthdays [days]               - Upcoming birthdays (default 7 days)
-  all                            - Show all contacts
-  save                           - Save to file
-  close/exit                     - Exit
+  hello                             - Greeting
+  add [name] [phone]                - Add contact or phone
+  change [name] [old] [new]         - Change phone
+  phone [name]                      - Show contact phones
+  remove [name] [phone]             - Remove phone from contact
+  delete [name]                     - Delete contact
+  add-birthday [name] [DD.MM.YYYY]  - Add birthday
+  show-birthday [name]              - Show birthday
+  birthdays [days]                  - Upcoming birthdays (default 7 days)
+  all                               - Show all contacts
+  save                              - Save to file
+  close/exit                        - Exit
 """

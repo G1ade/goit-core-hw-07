@@ -101,8 +101,8 @@ class AddressBook(UserDict):
 
     def get_upcoming_birthdays(self, days=7):
         """
-        Повертає список контактів, у яких день народження припадає 
-        вперед на 7 днів включно з поточним днем.
+        We'll return a contact list showing the days when people have seizures.
+        Go forward 7 days, including the exact day.
         """
         upcoming_birthdays = []
         today = date.today()

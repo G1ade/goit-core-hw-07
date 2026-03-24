@@ -18,14 +18,12 @@ class Name(Field):
     """Class for storing contact name."""
     pass
 
-
 class Phone(Field):
     """Class for storing phone number with validation (10 digits)."""
     def __init__(self, value):
         if not (isinstance(value, str) and value.isdigit() and len(value) == 10):
              raise ValueError("Phone number must be 10 digits")
         super().__init__(value)
-
 
 class Birthday(Field):
     """Class for storing birthday with validation."""
@@ -35,6 +33,7 @@ class Birthday(Field):
                 super().__init__(value)
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
+
 
 class Record:
     """Class for storing contact information including name and list of phones."""
@@ -153,7 +152,7 @@ def input_error(func):
         try:
             return func(*args, **kwargs)
         except ValueError as e:
-            return str(e) if str(e) else "Give me name and phone please."
+            return str(e)
         except IndexError:
             return "Missing contact information, please use the 'help' command if you have any difficulties."
         except KeyError as e:

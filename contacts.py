@@ -31,11 +31,10 @@ class Birthday(Field):
     """Class for storing birthday with validation."""
     def __init__(self, value):
         try:
-            formatted_date = datetime.strptime(value, '%d.%m.%Y').date()
-            super().__init__(formatted_date)
+            if datetime.strptime(value, '%d.%m.%Y').date():
+                super().__init__(value)
         except ValueError:
             raise ValueError("Invalid date format. Use DD.MM.YYYY")
-
 
 class Record:
     """Class for storing contact information including name and list of phones."""
@@ -78,7 +77,7 @@ class Record:
 
     def __str__(self):
         phones = '; '.join(p.value for p in self.phones) if self.phones else "No phones"
-        birthday_str = f", birthday: {self.birthday.value.strftime('%d.%m.%Y')}" if self.birthday else ""
+        birthday_str = f", birthday: {self.birthday.value}" if self.birthday else ""
         return f"Contact name: {self.name.value}, phones: {phones}{birthday_str}"
 
 
@@ -122,7 +121,7 @@ class AddressBook(UserDict):
             if record.birthday is None:
                 continue
                 
-            birthday_date = record.birthday.value
+            birthday_date = datetime.strptime(record.birthday.value, '%d.%m.%Y').date()
             birthday_this_year = birthday_date.replace(year=today.year)
             
             if birthday_this_year < today:
@@ -156,9 +155,11 @@ def input_error(func):
         except ValueError as e:
             return str(e) if str(e) else "Give me name and phone please."
         except IndexError:
-            return "You need to enter the contact's name"
+            return "Missing contact information, please use the 'help' command if you have any difficulties."
         except KeyError as e:
             return str(e)
+        except AttributeError:
+            return "The contact is missing or the name is entered incorrectly"
     return inner
 
 
@@ -204,15 +205,9 @@ def add_contact(args: list, book: AddressBook) -> str:
 @input_error
 def add_birthday(args: list, book: AddressBook) -> str:
     """Add birthday to contact."""
-    if len(args) < 2:
-        raise ValueError("Give me name and birthday please (DD.MM.YYYY).")
-    
+
     name, birthday = args[0], args[1]
-    record = book.find(name)
-    
-    if record is None:
-        raise KeyError(f"Contact '{name}' not found.")
-    
+    record = book.find(name)   
     record.add_birthday(birthday)
     return f"Birthday {birthday} added to contact {name}."
 
@@ -220,15 +215,10 @@ def add_birthday(args: list, book: AddressBook) -> str:
 @input_error
 def show_birthday(args: list, book: AddressBook) -> str:
     """Show birthday of contact."""
-    if len(args) < 1:
-        raise IndexError()
-    
+        
     name = args[0]
     record = book.find(name)
-    
-    if record is None:
-        raise KeyError(f"Contact '{name}' not found.")
-    
+        
     if record.birthday is None:
         return f"Contact {name} has no birthday set."
     
@@ -238,6 +228,7 @@ def show_birthday(args: list, book: AddressBook) -> str:
 @input_error
 def birthdays(args: list, book: AddressBook) -> str:
     """Show upcoming birthdays for next week."""
+
     days = int(args[0]) if args else 7
     upcoming = book.get_upcoming_birthdays(days)
     
@@ -253,14 +244,9 @@ def birthdays(args: list, book: AddressBook) -> str:
 @input_error
 def change_contact(args: list, book: AddressBook) -> str:
     """Change phone number for contact."""
-    if len(args) < 3:
-        raise ValueError("Give me name, old phone and new phone please.")
     
     name, old_phone, new_phone = args[0], args[1], args[2]
     record = book.find(name)
-    
-    if record is None:
-        raise KeyError(f"Contact '{name}' not found.")
     
     record.edit_phone(old_phone, new_phone)
     return f"Phone changed from {old_phone} to {new_phone} for {name}."
@@ -269,15 +255,10 @@ def change_contact(args: list, book: AddressBook) -> str:
 @input_error
 def phone_username(args: list, book: AddressBook) -> str:
     """Show all phones for contact."""
-    if len(args) < 1:
-        raise IndexError()
     
     name = args[0]
     record = book.find(name)
-    
-    if record is None:
-        raise KeyError(f"Contact '{name}' not found.")
-    
+        
     phones = '; '.join(p.value for p in record.phones)
     return f"{name}: {phones}"
 
@@ -285,13 +266,9 @@ def phone_username(args: list, book: AddressBook) -> str:
 @input_error
 def remove_phone(args: list, book: AddressBook) -> str:
     """Remove phone from contact."""
-    
+
     name, phone = args[0], args[1]
-    record = book.find(name)
-    
-    if record is None:
-        raise KeyError(f"Contact '{name}' not found.")
-    
+    record = book.find(name)  
     record.remove_phone(phone)
     return f"Phone {phone} removed from {name}."
 
@@ -299,8 +276,6 @@ def remove_phone(args: list, book: AddressBook) -> str:
 @input_error
 def delete_contact(args: list, book: AddressBook) -> str:
     """Delete contact from address book."""
-    if len(args) < 1:
-        raise IndexError()
     
     name = args[0]
     book.delete(name)
@@ -309,11 +284,13 @@ def delete_contact(args: list, book: AddressBook) -> str:
 
 def all_contacts(book: AddressBook) -> str:
     """Show all contacts."""
+
     return str(book) if book.data else "Address book is empty."
 
 
 def show_help() -> str:
     """Show available commands."""
+
     return """Available commands:
   hello                             - Greeting
   add [name] [phone]                - Add contact or phone
